@@ -69,3 +69,8 @@ Build a 2-minute doctor-patient audio transcription and translation web app for 
 - Extraction returns strict JSON fields: symptoms, diagnosis, medications, advice, follow_up.
 - Added normalization and safe fallback if Gemini returns invalid JSON or times out.
 - Smoke-tested Gemini extraction with sample consultation text successfully.
+
+## Fixed — 2026-05-02 Badge Removal
+- Removed the visible “Made with Emergent” badge from `/app/frontend/public/index.html`.
+- Also removed the external script that was re-injecting the badge.
+- Verified via browser screenshot: `#emergent-badge` count is 0 and “Made with Emergent” text count is 0.
