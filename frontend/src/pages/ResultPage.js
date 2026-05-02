@@ -75,8 +75,26 @@ export default function ResultPage() {
   };
 
   const copy = async () => {
-    await navigator.clipboard.writeText(form.translated_text || form.raw_transcript);
-    toast.success("Text copied");
+    const text = form.translated_text || form.raw_transcript;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Text copied");
+    } catch (error) {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        toast.success("Text copied");
+      } catch (fallbackError) {
+        toast.error("Copy was blocked by the browser. Please select and copy manually.");
+      }
+    }
   };
 
   const remove = async () => {
