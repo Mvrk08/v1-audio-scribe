@@ -8,7 +8,7 @@ Build a 2-minute doctor-patient audio transcription and translation web app for 
 - Backend: FastAPI under `/api`, SQLite/SQLAlchemy database per user choice, JWT-style demo authentication.
 - Database: `users`, `sessions`, and `transcripts` tables implemented with SQLAlchemy models.
 - Audio: multipart upload to `/tmp`, max 25MB and 120-second validation; temporary file is deleted after processing.
-- External AI: Sarvam STT/translation and Gemini prescription extraction are currently **MOCKED** by explicit user choice and user instruction not to use live key without permission.
+- External AI: Sarvam STT/translation is now configured for live Sarvam use after explicit user approval. Gemini prescription extraction remains **MOCKED**.
 
 ## User Personas
 - Doctor: records or uploads a short consultation and needs fast structured notes.
@@ -35,7 +35,7 @@ Build a 2-minute doctor-patient audio transcription and translation web app for 
 
 ## Prioritized Backlog
 ### P0 Remaining
-- Replace **MOCKED** Sarvam STT/translation with live Sarvam API only after explicit user approval.
+- Validate live Sarvam STT/translation with a real user audio sample.
 - Replace **MOCKED** Gemini prescription extraction with live Gemini only after explicit user approval.
 
 ### P1 Remaining
@@ -52,3 +52,8 @@ Build a 2-minute doctor-patient audio transcription and translation web app for 
 1. When approved, wire live Sarvam Batch Speech-to-Text and Translation using the provided credential.
 2. When approved, wire live Gemini prescription extraction.
 3. Add richer prescription export formats and specialty-specific templates.
+
+## Implemented — 2026-05-02 Update
+- Enabled live Sarvam Batch Speech-to-Text and Sarvam text translation after explicit user approval.
+- Kept Gemini prescription extraction **MOCKED** as previously requested.
+- Verified backend health and login only; no live Sarvam transcription test was run so the user can try it first.

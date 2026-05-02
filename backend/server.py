@@ -3,7 +3,7 @@ import hashlib
 import json
 import logging
 import os
-import shutil
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -37,10 +37,12 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 DEMO_EMAIL = os.environ["DEMO_EMAIL"]
 DEMO_PASSWORD = os.environ["DEMO_PASSWORD"]
 MOCK_EXTERNAL_SERVICES = os.environ.get("MOCK_EXTERNAL_SERVICES", "true").lower() == "true"
+SARVAM_API_KEY = os.environ.get("SARVAM_API_KEY", "")
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
 MAX_AUDIO_SECONDS = 120
 SUPPORTED_EXTENSIONS = {"webm", "wav", "mp3", "m4a", "aac", "flac", "ogg", "mp4"}
 LANGUAGE_CODES = {"auto": "Auto detect", "en": "English", "hi": "Hindi", "pa": "Punjabi"}
+SARVAM_LANGUAGE_CODES = {"auto": "unknown", "en": "en-IN", "hi": "hi-IN", "pa": "pa-IN"}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -241,11 +243,76 @@ def validate_language(code: str, allow_auto: bool = False) -> str:
 
 
 class SarvamService:
-    """Sarvam wrapper. V1 runs in mock mode until a live Sarvam API key is added."""
+    """Sarvam wrapper with mock fallback and live batch STT/translation support."""
+
+    def _client(self):
+        if not SARVAM_API_KEY:
+            raise RuntimeError("Sarvam API key is not configured")
+        from sarvamai import SarvamAI
+
+        return SarvamAI(api_subscription_key=SARVAM_API_KEY, timeout=120)
+
+    def _language_code(self, language: Optional[str]) -> str:
+        if not language:
+            return "auto"
+        normalized = language.strip()
+        if normalized in SARVAM_LANGUAGE_CODES:
+            return SARVAM_LANGUAGE_CODES[normalized]
+        if normalized in {"unknown", "auto"}:
+            return "auto"
+        if normalized.endswith("-IN"):
+            return normalized
+        return SARVAM_LANGUAGE_CODES.get(normalized[:2], "auto")
+
+    def _response_value(self, response: Any, key: str, default: str = "") -> str:
+        if isinstance(response, dict):
+            return response.get(key, default)
+        return getattr(response, key, default)
+
+    def _extract_text(self, file_results: Dict[str, List[Dict[str, Any]]]) -> str:
+        successful = file_results.get("successful") or []
+        pieces = []
+        for item in successful:
+            for key in ("transcript", "transcribed_text", "text", "output_text"):
+                value = item.get(key)
+                if value:
+                    pieces.append(str(value).strip())
+                    break
+        return "\n".join(piece for piece in pieces if piece).strip()
 
     def transcribe(self, session: MedicalSession) -> Dict[str, Any]:
         if not MOCK_EXTERNAL_SERVICES:
-            raise RuntimeError("Live Sarvam key is not configured in this MVP build")
+            if not session.audio_path or not Path(session.audio_path).exists():
+                raise RuntimeError("Temporary audio file is missing")
+            client = self._client()
+            language_code = self._language_code(session.source_language)
+            create_kwargs = {
+                "model": "saaras:v3",
+                "mode": "transcribe",
+                "with_diarization": False,
+                "with_timestamps": False,
+            }
+            if language_code != "auto":
+                create_kwargs["language_code"] = language_code
+            job = client.speech_to_text_job.create_job(**create_kwargs)
+            uploaded = job.upload_files(file_paths=[session.audio_path], timeout=90)
+            if not uploaded:
+                raise RuntimeError("Sarvam audio upload failed")
+            job.start()
+            job.wait_until_complete(poll_interval=3, timeout=300)
+            if job.is_failed():
+                raise RuntimeError("Sarvam speech-to-text job failed")
+            file_results = job.get_file_results()
+            text = self._extract_text(file_results)
+            if not text:
+                text = "No speech detected."
+            return {
+                "text": text,
+                "language_code": language_code if language_code != "auto" else "unknown",
+                "confidence": 0.9,
+                "job_id": job.job_id,
+                "warning": "",
+            }
         transcript = (
             "Patient reports fever, sore throat, and dry cough for three days. "
             "Doctor advises paracetamol 500 mg twice daily after food, warm fluids, rest, "
@@ -259,7 +326,27 @@ class SarvamService:
             "warning": "MOCKED Sarvam speech-to-text used because no Sarvam API key was provided.",
         }
 
-    def translate(self, text: str, target_language: str) -> Dict[str, str]:
+    def translate(self, text: str, target_language: str, source_language: Optional[str] = None) -> Dict[str, str]:
+        target_code = self._language_code(target_language)
+        source_code = self._language_code(source_language)
+        if not MOCK_EXTERNAL_SERVICES and target_code == source_code and target_code != "auto":
+            return {"text": text, "warning": ""}
+        if not MOCK_EXTERNAL_SERVICES:
+            try:
+                client = self._client()
+                response = client.text.translate(
+                    input=text,
+                    source_language_code=source_code if source_code != "unknown" else "auto",
+                    target_language_code=target_code,
+                )
+                translated_text = self._response_value(response, "translated_text") or text
+                return {"text": translated_text, "warning": ""}
+            except Exception as exc:
+                logger.exception("Sarvam translation failed")
+                return {
+                    "text": text,
+                    "warning": f"Sarvam translation failed, showing original transcript instead: {exc}",
+                }
         if target_language == "en":
             return {"text": text, "warning": ""}
         translations = {
@@ -444,7 +531,7 @@ async def process_session_task(session_id: str) -> None:
             return
         try:
             stt = sarvam_service.transcribe(medical_session)
-            translated = sarvam_service.translate(stt["text"], medical_session.target_language)
+            translated = sarvam_service.translate(stt["text"], medical_session.target_language, stt.get("language_code"))
             prescription = llm_service.extract_prescription(translated["text"] if medical_session.target_language == "en" else stt["text"])
             warnings = [stt.get("warning", ""), translated.get("warning", ""), "MOCKED Gemini prescription extraction used for this preview build."]
             transcript = Transcript(
