@@ -3,6 +3,8 @@ import hashlib
 import json
 import logging
 import os
+import shutil
+import tempfile
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -280,6 +282,37 @@ class SarvamService:
                     break
         return "\n".join(piece for piece in pieces if piece).strip()
 
+    def _download_transcript_outputs(self, job: Any) -> Dict[str, Any]:
+        output_dir = Path(tempfile.mkdtemp(prefix="sarvam-output-"))
+        try:
+            job.download_outputs(str(output_dir))
+            transcripts: List[str] = []
+            language_code = "unknown"
+            confidence = 0.9
+            for output_file in output_dir.glob("*.json"):
+                try:
+                    data = json.loads(output_file.read_text())
+                except json.JSONDecodeError:
+                    logger.warning("Skipping malformed Sarvam output file %s", output_file.name)
+                    continue
+                transcript = str(data.get("transcript") or "").strip()
+                if transcript:
+                    transcripts.append(transcript)
+                if data.get("language_code"):
+                    language_code = str(data["language_code"])
+                if data.get("language_probability") is not None:
+                    try:
+                        confidence = float(data["language_probability"])
+                    except (TypeError, ValueError):
+                        confidence = 0.9
+            return {
+                "text": "\n".join(transcripts).strip(),
+                "language_code": language_code,
+                "confidence": confidence,
+            }
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
     def transcribe(self, session: MedicalSession) -> Dict[str, Any]:
         if not MOCK_EXTERNAL_SERVICES:
             if not session.audio_path or not Path(session.audio_path).exists():
@@ -302,14 +335,14 @@ class SarvamService:
             job.wait_until_complete(poll_interval=3, timeout=300)
             if job.is_failed():
                 raise RuntimeError("Sarvam speech-to-text job failed")
-            file_results = job.get_file_results()
-            text = self._extract_text(file_results)
+            output = self._download_transcript_outputs(job)
+            text = output["text"]
             if not text:
                 text = "No speech detected."
             return {
                 "text": text,
-                "language_code": language_code if language_code != "auto" else "unknown",
-                "confidence": 0.9,
+                "language_code": output["language_code"] or (language_code if language_code != "auto" else "unknown"),
+                "confidence": output["confidence"],
                 "job_id": job.job_id,
                 "warning": "",
             }

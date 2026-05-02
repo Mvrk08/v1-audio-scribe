@@ -57,3 +57,9 @@ Build a 2-minute doctor-patient audio transcription and translation web app for 
 - Enabled live Sarvam Batch Speech-to-Text and Sarvam text translation after explicit user approval.
 - Kept Gemini prescription extraction **MOCKED** as previously requested.
 - Verified backend health and login only; no live Sarvam transcription test was run so the user can try it first.
+
+## Fixed — 2026-05-02 Sarvam Result Parsing
+- Root cause: Sarvam Batch jobs were completing successfully, but the backend only read job metadata and did not download/parse the output JSON transcript file.
+- Fix: backend now downloads Sarvam output JSON after job completion and stores the real `transcript`, `language_code`, and confidence.
+- Repaired previously affected completed sessions that displayed “No speech detected” by pulling their completed Sarvam outputs without starting new transcription jobs.
+- Gemini prescription extraction remains **MOCKED**.
