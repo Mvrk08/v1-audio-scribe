@@ -98,9 +98,13 @@ export default function ResultPage() {
   };
 
   const remove = async () => {
-    await api.deleteSession(id);
-    toast.success("Session deleted");
-    navigate("/history");
+    try {
+      await api.deleteSession(id);
+      toast.success("Session deleted");
+      navigate("/history");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Could not delete session");
+    }
   };
 
   if (status !== "completed") {
