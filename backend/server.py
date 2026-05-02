@@ -9,7 +9,7 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import jwt
 from dotenv import load_dotenv
@@ -40,6 +40,8 @@ DEMO_EMAIL = os.environ["DEMO_EMAIL"]
 DEMO_PASSWORD = os.environ["DEMO_PASSWORD"]
 MOCK_EXTERNAL_SERVICES = os.environ.get("MOCK_EXTERNAL_SERVICES", "true").lower() == "true"
 SARVAM_API_KEY = os.environ.get("SARVAM_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
 MAX_AUDIO_SECONDS = 120
 SUPPORTED_EXTENSIONS = {"webm", "wav", "mp3", "m4a", "aac", "flac", "ogg", "mp4"}
@@ -401,16 +403,78 @@ class SarvamService:
 
 
 class LLMService:
-    """Gemini extraction placeholder. V1 intentionally returns deterministic mock output."""
+    """Live Gemini prescription extraction with safe structured fallback."""
 
-    def extract_prescription(self, clean_transcript: str) -> Dict[str, Any]:
+    fallback_prescription = {
+        "symptoms": ["Not specified"],
+        "diagnosis": "Not specified",
+        "medications": ["Not specified"],
+        "advice": ["Not specified"],
+        "follow_up": "Not specified",
+    }
+
+    def _normalize_prescription(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        def normalize_list(value: Any) -> List[str]:
+            if isinstance(value, list):
+                cleaned = [str(item).strip() for item in value if str(item).strip()]
+                return cleaned or ["Not specified"]
+            if isinstance(value, str) and value.strip():
+                return [value.strip()]
+            return ["Not specified"]
+
+        def normalize_text(value: Any) -> str:
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+            return "Not specified"
+
         return {
-            "symptoms": ["Fever", "Sore throat", "Dry cough for three days"],
-            "diagnosis": "Not specified",
-            "medications": ["Paracetamol 500 mg twice daily after food"],
-            "advice": ["Warm fluids", "Rest", "Monitor symptoms"],
-            "follow_up": "Review in three days if symptoms persist",
+            "symptoms": normalize_list(payload.get("symptoms")),
+            "diagnosis": normalize_text(payload.get("diagnosis")),
+            "medications": normalize_list(payload.get("medications")),
+            "advice": normalize_list(payload.get("advice")),
+            "follow_up": normalize_text(payload.get("follow_up")),
         }
+
+    def _parse_json_response(self, response: str) -> Dict[str, Any]:
+        cleaned = response.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.strip("`")
+            if cleaned.lower().startswith("json"):
+                cleaned = cleaned[4:].strip()
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end == -1 or end < start:
+            raise ValueError("Gemini did not return JSON")
+        return json.loads(cleaned[start : end + 1])
+
+    async def extract_prescription(self, clean_transcript: str, session_id: str) -> Tuple[Dict[str, Any], str]:
+        if not GEMINI_API_KEY:
+            return self.fallback_prescription.copy(), "Gemini API key is not configured; prescription extraction used safe fallback."
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+            system_message = (
+                "Convert the doctor-patient conversation into a structured medical prescription. "
+                "Rules: extract symptoms, diagnosis, medications, advice, and follow_up. "
+                "Keep it concise and structured. Do not hallucinate missing details. "
+                "If something is not mentioned, write 'Not specified'. "
+                "Return ONLY valid JSON with keys: symptoms (array of strings), diagnosis (string), "
+                "medications (array of strings), advice (array of strings), follow_up (string)."
+            )
+            chat = LlmChat(
+                api_key=GEMINI_API_KEY,
+                session_id=f"prescription-{session_id}",
+                system_message=system_message,
+            ).with_model("gemini", GEMINI_MODEL)
+            response = await chat.send_message(UserMessage(text=f"Conversation:\n{clean_transcript}"))
+            parsed = self._parse_json_response(str(response))
+            return self._normalize_prescription(parsed), ""
+        except Exception as exc:
+            logger.exception("Gemini prescription extraction failed")
+            return (
+                self.fallback_prescription.copy(),
+                f"Gemini prescription extraction failed; safe fallback shown: {exc}",
+            )
 
 
 sarvam_service = SarvamService()
@@ -565,8 +629,11 @@ async def process_session_task(session_id: str) -> None:
         try:
             stt = sarvam_service.transcribe(medical_session)
             translated = sarvam_service.translate(stt["text"], medical_session.target_language, stt.get("language_code"))
-            prescription = llm_service.extract_prescription(translated["text"] if medical_session.target_language == "en" else stt["text"])
-            warnings = [stt.get("warning", ""), translated.get("warning", ""), "MOCKED Gemini prescription extraction used for this preview build."]
+            prescription, llm_warning = await llm_service.extract_prescription(
+                translated["text"] if medical_session.target_language == "en" else stt["text"],
+                session_id,
+            )
+            warnings = [stt.get("warning", ""), translated.get("warning", ""), llm_warning]
             transcript = Transcript(
                 id=str(uuid.uuid4()),
                 session_id=session_id,

@@ -8,7 +8,7 @@ Build a 2-minute doctor-patient audio transcription and translation web app for 
 - Backend: FastAPI under `/api`, SQLite/SQLAlchemy database per user choice, JWT-style demo authentication.
 - Database: `users`, `sessions`, and `transcripts` tables implemented with SQLAlchemy models.
 - Audio: multipart upload to `/tmp`, max 25MB and 120-second validation; temporary file is deleted after processing.
-- External AI: Sarvam STT/translation is now configured for live Sarvam use after explicit user approval. Gemini prescription extraction remains **MOCKED**.
+- External AI: Sarvam STT/translation is now configured for live Sarvam use after explicit user approval. Gemini prescription extraction is now live using the user-provided Gemini API key.
 
 ## User Personas
 - Doctor: records or uploads a short consultation and needs fast structured notes.
@@ -36,7 +36,7 @@ Build a 2-minute doctor-patient audio transcription and translation web app for 
 ## Prioritized Backlog
 ### P0 Remaining
 - Validate live Sarvam STT/translation with a real user audio sample.
-- Replace **MOCKED** Gemini prescription extraction with live Gemini only after explicit user approval.
+- Validate live Gemini extraction quality on real medical conversations and refine prompt if needed.
 
 ### P1 Remaining
 - Add real audio duration probing server-side for uploaded files.
@@ -62,4 +62,10 @@ Build a 2-minute doctor-patient audio transcription and translation web app for 
 - Root cause: Sarvam Batch jobs were completing successfully, but the backend only read job metadata and did not download/parse the output JSON transcript file.
 - Fix: backend now downloads Sarvam output JSON after job completion and stores the real `transcript`, `language_code`, and confidence.
 - Repaired previously affected completed sessions that displayed “No speech detected” by pulling their completed Sarvam outputs without starting new transcription jobs.
-- Gemini prescription extraction remains **MOCKED**.
+- Gemini prescription extraction is now live using the user-provided Gemini API key.
+
+## Implemented — 2026-05-02 Gemini Extraction
+- Enabled live Gemini structured prescription extraction using the user-provided Gemini key.
+- Extraction returns strict JSON fields: symptoms, diagnosis, medications, advice, follow_up.
+- Added normalization and safe fallback if Gemini returns invalid JSON or times out.
+- Smoke-tested Gemini extraction with sample consultation text successfully.
