@@ -1,0 +1,103 @@
+{
+  "theme": "Light",
+  "archetype": "Archetype 1 (Organic & Earthy)",
+  "rationale": "Medical applications require warmth, calm, and trust. A stark white or heavy dark mode can feel too clinical, cold, or disconnected from the human element. By utilizing soft sage greens, bone-whites, and earthy terracotta accents, we foster a sense of safety and organic care for both patients and doctors.",
+  "typography": {
+    "headings": {
+      "family": "Manrope",
+      "rationale": "Soft Utility – Friendly, clear, and modern without being overly corporate.",
+      "scales": {
+        "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-tight font-bold",
+        "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight leading-snug font-semibold",
+        "h3": "text-xl sm:text-2xl font-semibold",
+        "h4": "text-lg sm:text-xl font-medium"
+      }
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "rationale": "Highly legible, geometric, and functional, perfect for dense medical data and transcriptions.",
+      "scales": {
+        "base": "text-base leading-relaxed",
+        "small": "text-sm leading-relaxed",
+        "micro": "text-xs tracking-[0.2em] uppercase"
+      }
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "#FDFBF7",
+      "secondary": "#F4F1EB"
+    },
+    "surface": {
+      "default": "#FFFFFF",
+      "muted": "#F9F8F6"
+    },
+    "brand": {
+      "primary": "#4A5D4E",
+      "primary_hover": "#38523A",
+      "accent": "#D4A373",
+      "accent_hover": "#BC8F63"
+    },
+    "text": {
+      "primary": "#2C302E",
+      "secondary": "#636965",
+      "inverse": "#FFFFFF"
+    },
+    "border": {
+      "default": "#E8E6E1",
+      "focus": "#4A5D4E"
+    },
+    "status": {
+      "success": "#3D7A5D",
+      "warning": "#D4A373",
+      "error": "#B0413E",
+      "info": "#4A7C9D"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing (p-6, p-8, p-12) to avoid medical interface clutter.",
+    "border_radius": "rounded-2xl for main containers, rounded-xl for inner widgets. Subtle roundness.",
+    "grid_pattern": "MODE B (The Control Room Grid) for the dashboard/results view. Use tight gaps (gap-6) but generous inner padding.",
+    "alignment": "Left-align paragraphs, transcripts, and structured medical data for clarity. Center hero sections gently.",
+    "mobile_constraints": "max-h-[80vh] for images on mobile."
+  },
+  "surfaces_and_microthemes": {
+    "cards": "Flat solid surfaces with a delicate 1px border (border-border/60). No heavy shadows to prevent distraction. Ambient shadow-sm on hover.",
+    "headers": "Crystal Glassmorphism (bg-white/70 backdrop-blur-xl border-b border-white/20) for floating navigation.",
+    "medical_data_areas": "Use flat solid surfaces ONLY (no glass) to prevent visual refraction of data and maintain maximum legibility."
+  },
+  "components": {
+    "strategy": "Use Shadcn UI components but heavily customize their border radii and colors to match the Organic & Earthy archetype.",
+    "buttons": "Primary buttons use #4A5D4E with white text. Hover states must be explicitly set (e.g., hover:bg-[#38523A]).",
+    "inputs": "Shadcn Form, Input, and Textarea. Focus states must have a 2px ring of the primary color (focus:ring-[#4A5D4E]).",
+    "icons": "lucide-react (default choice, already installed, clean and modern).",
+    "interactions": "All interactive elements MUST have explicit hover, active, and focus states."
+  },
+  "motion": {
+    "state_transitions": "transition-all duration-200 ease-in-out for buttons and inputs.",
+    "loading": "Use gentle pulse animations rather than frantic spinners for processing states to maintain a calm environment.",
+    "lists": "Staggered fade-ins for history list items."
+  },
+  "media": {
+    "images": {
+      "hero_doctor_consultation": {
+        "url": "https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHxkb2N0b3IlMjBwYXRpZW50JTIwY29uc3VsdGF0aW9ufGVufDB8fHx8MTc3NzY5OTEyNXww&ixlib=rb-4.1.0&q=85",
+        "description": "Woman in white scrub suit holding gray laptop computer, consulting with a patient. Use for landing page hero or about section."
+      },
+      "abstract_background": {
+        "url": "https://images.unsplash.com/photo-1763734313272-f06e0d4c1239?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMHNhZ2UlMjBncmVlbiUyMHRleHR1cmV8ZW58MHx8fHwxNzc3Njk5MTMyfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract patterned texture with organic shapes (Sage green). Use for login page background or decorative accents."
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "Follow the exact sequence of phases described in the Master Build Plan.",
+    "Implement the UI using Next.js App Router, Tailwind CSS, and shadcn/ui components.",
+    "Ensure the recording interaction strict 120s timer is clearly visible and updates state accordingly (idle -> recording -> uploading -> processing).",
+    "For the /result/[id] page, implement a clear 'Bento' grid splitting raw transcript, translation, and structured prescription.",
+    "CRITICAL: Add 'data-testid' attributes to all interactive and key informational elements (buttons, inputs, status indicators) using kebab-case role-based naming (e.g., 'data-testid=\"record-start-button\"').",
+    "Use the mock LLM implementation for structured prescription extraction in V1.",
+    "Do not use transparent backgrounds over content without a blur/scrim. Use the defined glassmorphism or solid colors.",
+    "Ensure text contrast meets APCA/WCAG standards, especially in the #FDFBF7 and #FFFFFF surfaces."
+  ]
+}
